@@ -19,13 +19,36 @@
  *
  */
 
-$(function() {
-  // The github user or organisation you'd like to load issues for
-  // Defaults to hoodiehq!
-  var githubOrganisation = 'node-app';
-  // labelForNewCommitters is what you label simple issues for new committers with
+$(function () {
+
+  // Some config options for forked instances
+
+  // Which organisation's issues you'd like to display
+  var defaultGithubOrganisation = 'node-app';
+
+  // labelForNewCommitters is the label you use for simple issues that are suitable
+  // for new committers.
   // Will expose a new button "show issues for new committers" if not empty
   var labelForNewCommitters = 'starter';
+
+  // Startup
+
+  var githubOrganisation;
+  // If ubersicht is running as a github-page, we can use the subdomain as
+  // the default organisation
+  if(window.location.host.indexOf('.github.io') !== -1){
+    githubOrganisation = window.location.host.replace('.github.io', '');
+    // If it's at espy.github.io, set to hoodieHQ, since that has more
+    // repos and issues and is a better example
+    if(githubOrganisation === 'espy'){
+      githubOrganisation = 'hoodiehq';
+    }
+  }
+  // If none of the above apply, set to default github organisation
+  if(!githubOrganisation){
+    githubOrganisation = defaultGithubOrganisation;
+  }
+  useHash();
   // Place to store metadata about all the loaded issues
   window.metadata = {
     open: 0,
@@ -384,6 +407,24 @@ $(function() {
       }
     });
 
+    // update URL
+    var loc = window.location;
+    var baseUrl = [loc.protocol, '//', loc.host, loc.pathname].join('') ;
+    var qs = [
+      'showOpen=' + showOpen,
+      'showClosed=' + showClosed,
+      'showCommented=' + showCommented,
+      'showUncommented=' + showUncommented,
+      'last24Hours=' + onlyLast24Hours,
+      'repos=' + repos,
+      'labels=' + labels,
+      'milestones=' + milestones,
+      'usernames=' + usernames
+    ].join('&');
+
+    var newUrl = baseUrl + '?' + qs + loc.hash;
+    history.pushState(null, null, newUrl);
+
     updateSummary();
   }
 
@@ -444,6 +485,63 @@ $(function() {
     $('.summary').text(length);
   }
 
+ // populate filters
+  function parseURLFilters () {
+    var qss = window.location.search.substr(1).replace(/\/$/, '');
+    if(qss.length == 0) {
+      return {
+        showOpen: 'true',
+        showClosed: 'true',
+        showCommented: 'true',
+        showUncommented: 'true',
+        repos: '',
+        labels: '',
+        milestones: '',
+        usernames: '',
+        last24Hours: false
+      };
+    }
+    var qsPairs = qss.split('&');
+    var qs = {};
+    qsPairs.forEach(function(pair) {
+      var qsPair = pair.split('=');
+      var key = qsPair[0];
+      var value = qsPair[1];
+      qs[key] = value;
+    });
+    return qs;
+  }
+
+  function applyUrlFilters () {
+    var urlFilters = parseURLFilters();
+
+    var checkboxes = [
+      'showOpen',
+      'showClosed',
+      'last24Hours',
+      'showStarter',
+      'showCommented',
+      'showUncommented'
+    ];
+
+    var selectboxes = [
+      'repos',
+      'labels',
+      'usernames',
+      'milestones'
+    ];
+
+    checkboxes.forEach(function(checkbox) {
+      $('#' + checkbox).iCheck(urlFilters[checkbox] === 'true'?'check':'uncheck');
+    });
+
+    selectboxes.forEach(function(selectbox) {
+      $('#' + selectbox).select2('val', urlFilters[selectbox].split(','));
+    });
+
+    applyFilters();
+  }
+
   /*
   function getGittip(){
     var hash = window.location.hash;
@@ -469,5 +567,6 @@ $(function() {
   .then(sortIssuesByDate)
   .then(addRepoInformation)
   .then(getMetadata)
-  .then(render);
+  .then(render)
+  .then(applyUrlFilters)
 });
